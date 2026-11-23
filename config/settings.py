@@ -10,22 +10,54 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def _load_env_file(path):
+    """Charge un fichier .env (CLE=valeur) sans dépendance externe.
+    Les variables déjà définies dans l'environnement restent prioritaires."""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_env_file(BASE_DIR / ".env")
+
+
+def env(key, default=None):
+    return os.environ.get(key, default)
+
+
+def env_bool(key, default=False):
+    return env(key, str(default)).lower() in ("1", "true", "yes", "oui")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-)6@n2j83x(f_5lq&^x$f*o&6-%lmr1yd2i=#d=5v9_tdb4d-ed"
+# La clé est lue dans le fichier .env (voir .env.example), jamais dans le code.
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY manquante : copiez .env.example en .env et renseignez-la."
+    )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env_bool("DJANGO_DEBUG", False)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [h.strip() for h in env("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h.strip()]
 
 
 # Application definition
@@ -73,16 +105,25 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ged_db',
-        'USER': 'postgres',
-        'PASSWORD': 'admin123',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
+if env("DB_ENGINE", "postgresql") == "sqlite":
+    # Pratique pour les tests ou une démo sans PostgreSQL
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": env("DB_NAME", "ged_db"),
+            "USER": env("DB_USER", "postgres"),
+            "PASSWORD": env("DB_PASSWORD", ""),
+            "HOST": env("DB_HOST", "127.0.0.1"),
+            "PORT": env("DB_PORT", "5432"),
+        }
+    }
 
 
 # Password validation
@@ -107,9 +148,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "fr-fr"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Africa/Douala"
 
 USE_I18N = True
 
@@ -121,11 +162,23 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-import os
+# Chemin vers le dossier de stockage des fichiers militaires.
+# Les fichiers ne sont PAS servis publiquement : ils passent par la vue
+# protégée "telecharger_document", qui vérifie la connexion de l'utilisateur.
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
-# Chemin vers le dossier de stockage des fichiers militaires
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Taille maximale d'un document déposé (en Mo)
+GED_MAX_UPLOAD_MB = int(env("GED_MAX_UPLOAD_MB", "20"))
 
-# Redirection vers la page de login de l'admin par défaut
-LOGIN_URL = '/admin/login/'
+# Page de connexion de la GED (et non plus celle de l'admin)
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "index"
+LOGOUT_REDIRECT_URL = "login"
+
+# Sécurité des cookies et des en-têtes quand le site n'est pas en mode debug
+if not DEBUG:
+    SESSION_COOKIE_SECURE = env_bool("DJANGO_SECURE_COOKIES", False)  # à activer derrière HTTPS
+    CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = "DENY"

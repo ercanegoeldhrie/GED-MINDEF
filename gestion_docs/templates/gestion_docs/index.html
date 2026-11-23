@@ -1,34 +1,5 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>MINDEF | Système GED</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #f8f9fa; }
-        .navbar { background-color: #1a2a3a !important; }
-        .stat-card { border-left: 5px solid #1a2a3a; transition: 0.3s; }
-        .badge-secret { background-color: #d9534f; color: white; }
-        .bg-dark-custom { background-color: #121212; }
-    </style>
-</head>
-<body>
-    <nav class="navbar navbar-dark shadow-sm">
-        <div class="container d-flex justify-content-between">
-            <span class="navbar-brand mb-0 h1">🎖️ GED - MINISTÈRE DE LA DÉFENSE</span>
-            <div class="d-flex align-items-center">
-                <span class="text-white me-3 small">Utilisateur : <strong>{{ user.username }}</strong></span>
-
-                <form action="{% url 'admin:logout' %}" method="post" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-outline-danger shadow-sm">
-                        Déconnexion
-                    </button>
-                </form>
-            </div>
-        </div>
-    </nav>
-
+{% extends "gestion_docs/base.html" %}
+{% block content %}
     <div class="container mt-3 mb-4">
         <div class="d-flex justify-content-between align-items-center bg-dark text-warning p-3 rounded shadow-sm border-start border-warning border-5">
             <div><span class="badge bg-success me-2">●</span><small class="fw-bold text-uppercase">Réseau : Opérationnel</small></div>
@@ -53,12 +24,17 @@
             </div>
         </div>
 
-        <div class="card shadow-sm border-0">
+        <div class="card shadow-sm border-0 mb-5">
             <div class="card-body p-4">
-                <form method="GET" action="" class="mb-4 d-flex">
-                    <input type="text" name="q" class="form-control me-2 py-2" placeholder="Rechercher par référence..." value="{{ request.GET.q }}">
-                    <button type="submit" class="btn btn-dark px-4">Rechercher</button>
-                </form>
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                    <form method="GET" action="" class="d-flex flex-grow-1">
+                        <input type="text" name="q" class="form-control me-2 py-2" placeholder="Rechercher par référence, objet, signataire, unité..." value="{{ query }}">
+                        <button type="submit" class="btn btn-dark px-4">Rechercher</button>
+                    </form>
+                    {% if perms.gestion_docs.add_documentmilitaire %}
+                    <a href="{% url 'ajouter_document' %}" class="btn btn-success px-4 py-2">➕ Archiver un document</a>
+                    {% endif %}
+                </div>
 
                 <div class="table-responsive">
                     <table class="table table-hover align-middle">
@@ -66,7 +42,9 @@
                             <tr>
                                 <th>Référence</th>
                                 <th>Objet</th>
+                                <th>Catégorie</th>
                                 <th>Classification</th>
+                                <th>Archivé le</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -74,19 +52,21 @@
                             {% for doc in documents %}
                             <tr>
                                 <td><code class="text-danger fw-bold">{{ doc.reference }}</code></td>
-                                <td>{{ doc.titre }}</td>
+                                <td>{{ doc.titre }}<div class="small text-muted">{{ doc.unite_emettrice }} · {{ doc.signataire }}</div></td>
+                                <td class="small">{{ doc.get_categorie_display }}</td>
                                 <td><span class="badge {% if doc.classification == 'SECRET_DEFENSE' %}badge-secret{% else %}bg-secondary{% endif %}">{{ doc.get_classification_display }}</span></td>
+                                <td class="small">{{ doc.archive_le|date:"d/m/Y H:i" }}</td>
                                 <td class="text-end">
                                     <div class="btn-group">
-                                        <a href="{{ doc.fichier.url }}" class="btn btn-sm btn-outline-primary" target="_blank">👁️ Voir</a>
+                                        <a href="{% url 'telecharger_document' doc.pk %}" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">👁️ Voir</a>
                                         {% if user.is_staff %}
-                                        <a href="{{ doc.fichier.url }}" class="btn btn-sm btn-primary" download>💾 Télécharger</a>
+                                        <a href="{% url 'telecharger_document' doc.pk %}?telecharger=1" class="btn btn-sm btn-primary">💾 Télécharger</a>
                                         {% endif %}
                                     </div>
                                 </td>
                             </tr>
                             {% empty %}
-                            <tr><td colspan="4" class="text-center py-5 text-muted">⚠️ Aucune archive trouvée dans le périmètre de recherche.</td></tr>
+                            <tr><td colspan="6" class="text-center py-5 text-muted">⚠️ Aucune archive trouvée dans le périmètre de recherche.</td></tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -94,5 +74,4 @@
             </div>
         </div>
     </div>
-</body>
-</html>
+{% endblock %}

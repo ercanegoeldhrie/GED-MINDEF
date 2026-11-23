@@ -1,13 +1,23 @@
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.urls import path
-from django.conf import settings
-from django.conf.urls.static import static
-from gestion_docs.views import liste_documents # Importez la vue ici
+
+from gestion_docs import views
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', liste_documents, name='index'), # L'adresse vide '' correspond à l'accueil
+    path("admin/", admin.site.urls),
+    path("", views.liste_documents, name="index"),
+    path("documents/ajouter/", views.ajouter_document, name="ajouter_document"),
+    path("documents/<int:pk>/fichier/", views.telecharger_document, name="telecharger_document"),
+    path(
+        "connexion/",
+        auth_views.LoginView.as_view(
+            template_name="gestion_docs/login.html", redirect_authenticated_user=True
+        ),
+        name="login",
+    ),
+    path("deconnexion/", auth_views.LogoutView.as_view(), name="logout"),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Les fichiers de MEDIA_ROOT ne sont volontairement pas exposés ici :
+# ils sont servis par la vue protégée "telecharger_document".
